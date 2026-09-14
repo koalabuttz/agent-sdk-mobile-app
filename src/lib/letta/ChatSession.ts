@@ -24,6 +24,7 @@ import type { Profile } from "../profiles/profiles";
 import { getConversationModel, isAuthError, listConversationMessages, sdkClient } from "./api";
 import { emptyChat, type ApprovalRequest, type ChatSnapshot, type PermissionMode, type ToolStatus, type TranscriptItem } from "./model";
 import { patch } from "./mockSession";
+import { isSessionTransportFailure } from "./transportFailure";
 import { contentToText, formatToolInput } from "./toolText";
 import { newestTextKey, projectRows, type ProjectionState } from "./transcriptProjection";
 
@@ -91,6 +92,28 @@ export class ChatSession {
   private closed = false;
   /** Set when the stream errored terminally; reconnect() replaces the session. */
   private sessionDead = false;
+  private reconnecting: Promise<void> | null = null;
+  private foreground = true;
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private recoveryAttempts = 0;
+
+  setForeground(active: boolean): void {
+    this.foreground = active;
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = null;
+    if (active) { this.recoveryAttempts = 0; void this.reconnect(); }
+  }
+
+  private scheduleRecovery(): void {
+    if (this.closed || !this.foreground || this.recoveryTimer || this.recoveryAttempts >= 3 || this.snapshot.connection === 'auth_failed') return;
+    const delay = 1000 * 2 ** this.recoveryAttempts++;
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      void this.reconnect().then(() => {
+        if (this.snapshot.connection === 'offline') this.scheduleRecovery();
+      });
+    }, delay);
+  }
   /**
    * Row identity, delta accumulation, replay suppression and backfill merging
    * all belong to the SDK's accumulator (letta-agent-sdk#274). What stays here
@@ -452,7 +475,9 @@ export class ChatSession {
 
   /** Mirror live device status (permission mode, cwd) into the snapshot. */
   private watchDeviceStatus(session: LettaCodeSession): void {
-    session.onDeviceStatus((status) => this.commit(this.applyDeviceStatus(this.snapshot, status)));
+    session.onDeviceStatus((status) => {
+      if (!this.closed && this.session === session) this.commit(this.applyDeviceStatus(this.snapshot, status));
+    });
     void session.getDeviceStatus().catch(() => {
       // Best-effort: some transports may not replay status until a turn runs.
     });
@@ -527,7 +552,14 @@ export class ChatSession {
    * clear the offline banner if it succeeds. A live session keeps its own
    * socket; if it died, the next send() lazily opens a fresh one.
    */
-  async reconnect(): Promise<void> {
+  reconnect(): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    if (this.reconnecting) return this.reconnecting;
+    this.reconnecting = this.reconnectOnce().finally(() => { this.reconnecting = null; });
+    return this.reconnecting;
+  }
+
+  private async reconnectOnce(): Promise<void> {
     // A visible failure state means the user pressed Retry — acknowledge
     // instantly. Otherwise hold the "reconnecting" commit briefly so a fast
     // resume resync never flashes the banner over a healthy screen.
@@ -540,16 +572,17 @@ export class ChatSession {
         this.commit(patch(this.snapshot, { connection: "reconnecting" }));
       }, RECONNECT_BANNER_DELAY_MS);
     }
+    // Remote history uses the session socket: replace it BEFORE hydrating,
+    // including half-open Android sockets which haven't emitted an error yet.
+    const previous = this.session;
+    this.session = null;
+    this.sessionDead = false;
+    previous?.close();
     const ok = await this.hydrate();
     if (pending) clearTimeout(pending);
     // On failure hydrate() already committed offline/auth_failed.
-    if (!ok || this.closed) return;
-    // A dead session object can't be reused; drop it so send() reopens.
-    if (this.sessionDead) {
-      this.session?.close();
-      this.session = null;
-      this.sessionDead = false;
-    }
+    if (!ok || this.closed) { if (!this.closed) this.scheduleRecovery(); return; }
+    if (this.sessionDead) { this.scheduleRecovery(); return; }
     this.commit(patch(this.snapshot, { connection: "connected" }));
   }
 
@@ -575,6 +608,8 @@ export class ChatSession {
 
   close(): void {
     this.closed = true;
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = null;
     this.accumulator.reset();
     this.localRows = [];
     this.echoOtids.clear();
@@ -712,16 +747,19 @@ export class ChatSession {
   }
 
   private async consume(): Promise<void> {
+    const session = this.session;
+    if (!session) return;
     try {
-      const session = this.session;
-      if (!session) return;
       // The SDK stream covers one turn and returns after its result. Open the
       // next stream immediately so later sends use the same live session.
       while (!this.closed && this.session === session) {
         let received = false;
         for await (const message of session.stream()) {
-          if (this.closed) break;
+          if (this.closed || this.session !== session) return;
           received = true;
+          if (isSessionTransportFailure(message as SDKMessage)) {
+            throw new Error('Session stream closed.');
+          }
           this.ingest(message as SDKMessage);
         }
         // A stream with no message means the SDK session itself closed. Route
@@ -730,7 +768,7 @@ export class ChatSession {
         if (!received) throw new Error("Session stream closed.");
       }
     } catch (e) {
-      if (this.closed) return;
+      if (this.closed || this.session !== session) return;
       this.sessionDead = true;
       this.settleActivityWaiters(e instanceof Error ? e : new Error("Stream ended unexpectedly."));
       // No streaming visual may outlive the stream (the caret would pulse on
@@ -744,6 +782,7 @@ export class ChatSession {
           connection: isAuthError(e) ? "auth_failed" : "offline",
         }),
       );
+      this.scheduleRecovery();
     }
   }
 

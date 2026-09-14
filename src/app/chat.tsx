@@ -171,10 +171,11 @@ export default function ChatScreen() {
       if (state === "active") {
         const away = backgroundedAt.current ? Date.now() - backgroundedAt.current : Infinity;
         backgroundedAt.current = null;
-        if (away > 30_000) void sessionRef.current?.reconnect();
+        if (away > 0) sessionRef.current?.setForeground(true);
         return;
       }
       backgroundedAt.current ??= Date.now();
+      sessionRef.current?.setForeground(false);
     });
     return () => sub.remove();
   }, []);
