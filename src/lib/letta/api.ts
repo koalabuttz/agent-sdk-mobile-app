@@ -19,6 +19,7 @@ import type {
 
 import { CLOUD_DEFAULT_URL, type Profile } from "../profiles/profiles";
 import { OAuthTokenError } from "../auth/oauthTokens";
+import { readReasoningEffort } from "./reasoningEffort";
 
 // Re-exported so UI code imports from the app's data module, but the
 // definition is the SDK's — no drift (previously narrowed to low|medium|high,
@@ -298,15 +299,7 @@ export async function getConversationModel(
 ): Promise<{ model: string | null; reasoningEffort: string | null; title: string | null }> {
   const body: LettaConversation = await sdkClient(conn).conversations.retrieve(conversationId);
   // model_settings is an open record on the SDK type; narrow the fields we read.
-  const s = body.model_settings as {
-    reasoning_effort?: string | null;
-    effort?: string | null;
-    thinking?: { type?: string } | null;
-  } | null;
-  // Providers normalize effort differently: OpenAI keeps reasoning_effort/
-  // effort; Anthropic converts it into a thinking budget.
-  const effort =
-    s?.reasoning_effort ?? s?.effort ?? (s?.thinking?.type === "enabled" ? "thinking" : null);
+  const effort = readReasoningEffort(body.model_settings);
   return {
     model: body.model ?? null,
     reasoningEffort: effort,

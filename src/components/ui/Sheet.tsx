@@ -17,9 +17,10 @@ interface Props {
   /** Content of unbounded height (tool payloads): dynamic sizing caps at the
    *  screen and the body scrolls with the sheet-aware scrollable. */
   scroll?: boolean;
+  onDismiss?: () => void;
 }
 
-export const Sheet = forwardRef<BottomSheetModal, Props>(function Sheet({ title, children, scroll }, ref) {
+export const Sheet = forwardRef<BottomSheetModal, Props>(function Sheet({ title, children, scroll, onDismiss }, ref) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -33,6 +34,7 @@ export const Sheet = forwardRef<BottomSheetModal, Props>(function Sheet({ title,
   return (
     <BottomSheetModal
       ref={ref}
+      onDismiss={onDismiss}
       enableDynamicSizing
       enablePanDownToClose
       backdropComponent={renderBackdrop}

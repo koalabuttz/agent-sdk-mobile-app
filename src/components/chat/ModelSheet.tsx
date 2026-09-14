@@ -4,10 +4,11 @@
  * until the server confirms; failures revert with an inline error.
  */
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { forwardRef, useState } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 
 import type { ModelOption, ReasoningEffort } from "../../lib/letta/api";
+import { uniqueModelOptions } from "../../lib/letta/modelOptions";
 import { useTheme } from "../../theme/ThemeProvider";
 import { radius, space } from "../../theme/tokens";
 import { Sheet } from "../ui/Sheet";
@@ -30,18 +31,28 @@ export const ModelSheet = forwardRef<BottomSheetModal, Props>(function ModelShee
 ) {
   const { colors } = useTheme();
   const [search, setSearch] = useState("");
+  const [draftModel, setDraftModel] = useState(currentModel);
   const [effort, setEffort] = useState<ReasoningEffort | null>(
     EFFORTS.includes(currentEffort as ReasoningEffort) ? (currentEffort as ReasoningEffort) : null,
   );
 
-  const filtered = models.filter(
+  useEffect(() => {
+    setDraftModel(currentModel);
+    setEffort(EFFORTS.includes(currentEffort as ReasoningEffort) ? currentEffort as ReasoningEffort : null);
+  }, [currentEffort, currentModel]);
+
+  const filtered = uniqueModelOptions(models).filter(
     (m) =>
       m.label.toLowerCase().includes(search.toLowerCase()) ||
       m.handle.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
-    <Sheet ref={ref} title="Model">
+    <Sheet ref={ref} title="Model" scroll onDismiss={() => {
+      if (draftModel && (draftModel !== currentModel || (effort !== null && effort !== currentEffort))) {
+        onSelect(draftModel, effort ?? undefined);
+      }
+    }}>
       <TextInput
         value={search}
         onChangeText={setSearch}
@@ -60,7 +71,7 @@ export const ModelSheet = forwardRef<BottomSheetModal, Props>(function ModelShee
               key={e}
               accessibilityRole="button"
               accessibilityLabel={`Effort ${e}${effort === e ? ", selected" : ""}`}
-              onPress={() => setEffort(effort === e ? null : e)}
+              onPress={() => setEffort(e)}
               style={[styles.segmentItem, effort === e && { backgroundColor: colors.bubble }]}
             >
               <Text role="sub" ink={effort === e ? 1 : 2} style={styles.segmentLabel}>
@@ -69,6 +80,7 @@ export const ModelSheet = forwardRef<BottomSheetModal, Props>(function ModelShee
             </Touchable>
           ))}
         </View>
+        <Text role="sub" ink={3}>Changes save when you close this dialog. Reasoning support varies by model.</Text>
       </View>
       {error ? (
         <Text role="sub" tone="danger">
@@ -76,14 +88,14 @@ export const ModelSheet = forwardRef<BottomSheetModal, Props>(function ModelShee
         </Text>
       ) : null}
       <View style={styles.listBlock}>
-        {filtered.slice(0, 8).map((m) => {
-          const selected = currentModel === m.handle;
+        {filtered.map((m) => {
+          const selected = draftModel === m.handle;
           return (
             <Touchable
               key={m.handle}
               accessibilityRole="button"
               accessibilityLabel={`Model ${m.label}${selected ? ", selected" : ""}`}
-              onPress={() => onSelect(m.handle, effort ?? undefined)}
+              onPress={() => setDraftModel(m.handle)}
               style={styles.modelRow}
             >
               <View style={styles.modelRowInner}>

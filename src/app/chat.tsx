@@ -346,7 +346,6 @@ export default function ChatScreen() {
   const selectModel = useCallback(
     async (handle: string, nextEffort?: ReasoningEffort) => {
       if (!activeProfile || !params.conversationId) return;
-      modelSheetRef.current?.dismiss();
       const previous = { model, effort };
       setModel(handle);
       if (nextEffort) setEffort(nextEffort);
@@ -354,6 +353,9 @@ export default function ChatScreen() {
       try {
         if (activeProfile.type === "remote" && sessionRef.current) {
           await sessionRef.current.setModel(handle, nextEffort);
+          const confirmed = await sessionRef.current.getModelInfo();
+          setModel(confirmed.model);
+          setEffort(confirmed.reasoningEffort);
         } else {
           const secret = (await getSecret(activeProfile.id)) ?? "";
           await updateConversationModel({ profile: activeProfile, secret }, params.conversationId, {
