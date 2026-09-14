@@ -14,3 +14,12 @@ expo-env.d.ts
 # @end expo-cli
 
 .env.local
+
+# Deployment configuration and credentials (examples remain tracked)
+google-services.json
+.local-deployment/
+relay/config.local.json
+relay/*-key.json
+relay/*-token
+relay/*.sqlite*
+.env.*.local

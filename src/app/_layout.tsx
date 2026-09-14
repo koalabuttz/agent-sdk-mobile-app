@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { ProfilesProvider } from "../lib/profiles/ProfilesContext";
+import { PushNavigation } from "../components/PushNavigation";
 import { ThemeProvider, useTheme } from "../theme/ThemeProvider";
 
 function ThemedStack() {
@@ -34,6 +35,7 @@ export default function RootLayout() {
         <ProfilesProvider>
           <BottomSheetModalProvider>
             <ThemedStack />
+            <PushNavigation />
           </BottomSheetModalProvider>
         </ProfilesProvider>
       </ThemeProvider>

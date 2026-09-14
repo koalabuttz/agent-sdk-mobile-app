@@ -94,6 +94,9 @@ export default function ConnectScreen() {
           />
         </View>
 
+        <View style={{ marginTop: space.lg }}>
+          <ModeCard glyph="♧" title="Notifications" detail="Set up Anna’s completion and approval alerts" onPress={() => router.push('./notifications')} />
+        </View>
         <View style={styles.saved}>
           <Text role="micro" ink={3}>
             Saved

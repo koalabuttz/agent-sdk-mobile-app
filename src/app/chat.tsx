@@ -5,7 +5,9 @@
  * confirmed); the send button morphs into stop.
  */
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { markChatVisible } from "../lib/notifications";
+import { notificationServerUrl } from "../lib/notificationDeployment";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -120,6 +122,10 @@ export default function ChatScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { activeProfile } = useProfiles();
+  useFocusEffect(useCallback(() => {
+    if (!notificationServerUrl || activeProfile?.type !== 'remote' || activeProfile.url.replace(/\/$/, '') !== notificationServerUrl) return;
+    return markChatVisible({ agentId: params.agentId, conversationId: params.conversationId });
+  }, [activeProfile?.type, activeProfile?.url, params.agentId, params.conversationId]));
 
   const sessionRef = useRef<ChatSession | null>(null);
   const listRef = useRef<FlatList<TranscriptRowItem>>(null);
