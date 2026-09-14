@@ -487,7 +487,9 @@ export default function ChatScreen() {
           </View>
         }
       />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.flex}>
+      {/* Android needs an explicit behavior here: with edge-to-edge enabled, the IME
+          can overlay the app even though the activity uses adjustResize. */}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <View style={styles.flex}>
           {snapshot.hydrating ? (
             <SkeletonList rows={4} avatar={false} />
