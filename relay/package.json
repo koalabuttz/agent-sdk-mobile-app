@@ -1,0 +1,16 @@
+{
+  "name": "anna-notification-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test *.test.js"
+  },
+  "dependencies": {
+    "google-auth-library": "11.0.2",
+    "ws": "8.21.3"
+  }
+}

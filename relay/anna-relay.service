@@ -1,0 +1,23 @@
+[Unit]
+Description=Anna completion and approval push relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=anna-relay
+Group=anna-relay
+WorkingDirectory=/opt/anna-relay
+ExecStart=/usr/local/bin/node /opt/anna-relay/service.js
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/anna-relay
+RestrictSUIDSGID=yes
+TimeoutStopSec=25
+
+[Install]
+WantedBy=multi-user.target

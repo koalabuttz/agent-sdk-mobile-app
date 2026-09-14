@@ -1,0 +1,5 @@
+{
+  "lettaUrl": "wss://app-server.example.com/ws",
+  "agentId": "replace-with-your-agent-id",
+  "firebaseProject": "replace-with-your-firebase-project"
+}
